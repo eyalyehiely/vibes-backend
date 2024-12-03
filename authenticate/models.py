@@ -11,7 +11,7 @@ def profile_picture_upload_path(instance, filename):
 
 class CustomUser(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = models.CharField(unique=True, max_length=15)
+    username = models.EmailField(unique=True)
     accept_terms = models.BooleanField(default=True)
     gender = models.CharField(max_length=255, blank=True, null=True)
     birth_date = models.DateField(default=datetime.date.today, blank=True, null=True)
@@ -72,12 +72,11 @@ class Otp(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.created_at + datetime.timedelta(minutes=5)  # OTP valid for 5 minutes
-    
-
 
     def __str__(self):
         return f"OTP for {self.user.username if self.user.username else 'Unknown username'}"
     
+
 
 
 class Activity(models.Model):
