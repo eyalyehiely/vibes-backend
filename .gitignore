@@ -4,4 +4,3 @@ logs/
 .DS/
 media/
 .env
-client_secret.json
