@@ -24,12 +24,24 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 # CustomUser Serializer with phone number validation
 class CustomUserSerializer(serializers.ModelSerializer):
-    phone_number = serializers.CharField(validators=[validate_phone_number])
+    # username = serializers.CharField(validators=[validate_phone_number])
     age = serializers.ReadOnlyField()
 
     class Meta:
         model = CustomUser
         fields = "__all__"
+
+class EmailSerializer(serializers.Serializer):
+    username = serializers.EmailField()
+
+
+class OTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+    class Meta:
+        model = Otp
+        fields = "__all__"
+
 
 
 
@@ -73,11 +85,3 @@ class CustomUserSerializer(serializers.ModelSerializer):
 #             talent_profile.save()
 
 #         return instance
-
-
-
- 
-
-    
-
-
