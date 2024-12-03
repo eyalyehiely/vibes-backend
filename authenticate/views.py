@@ -14,7 +14,7 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework import status
 from .utils import generate_and_send_otp, verify_otp, can_request_otp
 from rest_framework_simplejwt.tokens import RefreshToken
-# from django_ratelimit.decorators import ratelimit
+from django_ratelimit.decorators import ratelimit
 from vibes.settings import EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 from django.utils import timezone
 from django.core.cache import cache
@@ -87,106 +87,103 @@ def logout(request):
     return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
 
 
-
-
-
-
-
-
-# @api_view(['POST'])
-# # @ratelimit(key='ip', rate='5/m', method='POST', block=True)
-# @permission_classes([AllowAny]) 
-# def send_otp_email_view(request):
-#     start_time = time.time()
-#     logger.info("Received request to send OTP email.")
-#     serializer = EmailSerializer(data=request.data)
-#     if serializer.is_valid():
-#         phone_number = serializer.validated_data['username']
-#         logger.debug(f"Validated email: {phone_number}")
-#         try:
-#             user = CustomUser.objects.filter(username=phone_number).first()
-#             if user:
-#                 logger.info(f"Found existing user for phone_number: {phone_number}")
-#             else:
-#                 logger.info(f"No existing user found for phone_number: {phone_number}. Creating a new user.")
-#                 user = User.objects.create(username=phone_number)
-#                 user.set_unusable_password()
-#                 user.save()
-#                 logger.debug(f"Created new user with phone_number: {phone_number}")
+@api_view(['POST'])
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
+@permission_classes([AllowAny]) 
+def send_otp_email_view(request):
+    start_time = time.time()
+    logger.info("Received request to send OTP email.")
+    serializer = EmailSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['username']
+        logger.debug(f"Validated email: {email}")
+        try:
+            user = CustomUser.objects.filter(username=email).first()
+            if user:
+                logger.info(f"Found existing user for email: {email}")
+            else:
+                logger.info(f"No existing user found for email: {email}.")
+                return Response({"detail": "User doesnt exist."}, status=status.HTTP_404_NOT_FOUND)
+                # user = User.objects.create(username=email)
+                # user.set_unusable_password()
+                # user.save()
+                # logger.debug(f"Created new user with email: {email}")
                 
 
 
-#         except Exception as e:
-#             logger.error(f"Error querying or creating user for phone_number {phone_number}: {str(e)}")
-#             return Response({"detail": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"Error querying or creating user for email {email}: {str(e)}")
+            return Response({"detail": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-#         if not can_request_otp(user):
-#             logger.warning(f"OTP request limit exceeded for user: {phone_number}")
-#             return Response(
-#                 {"detail": "OTP request limit exceeded. Please try again later."},
-#                 status=status.HTTP_429_TOO_MANY_REQUESTS
-#             )
+        # if not can_request_otp(user):
+        #     logger.warning(f"OTP request limit exceeded for user: {email}")
+        #     return Response(
+        #         {"detail": "OTP request limit exceeded. Please try again later."},
+        #         status=status.HTTP_429_TOO_MANY_REQUESTS
+        #     )
 
-#         try:
-#             generate_and_send_otp(user)
-#             users_logger.info(f"OTP generated and sent to phone_number: {phone_number}")
-#             end_time = time.time()  # Capture end time
-#             print(f"Function execution time: {end_time - start_time} seconds")
-#             return Response({"detail": "OTP sent successfully to your phone_number."}, status=status.HTTP_200_OK)
-#         except Exception as e:
-#             users_logger.error(f"Failed to send OTP to phone_number {phone_number}: {str(e)}")
-#             return Response({"detail": "Failed to send OTP. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            generate_and_send_otp(user)
+            users_logger.info(f"OTP generated and sent to email: {email}")
+            end_time = time.time()  # Capture end time
+            print(f"Function execution time: {end_time - start_time} seconds")
+            return Response({"detail": "OTP sent successfully to your email."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            users_logger.error(f"Failed to send OTP to email {email}: {str(e)}")
+            return Response({"detail": "Failed to send OTP. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-#     users_logger.warning(f"Invalid serializer data: {serializer.errors}")
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    users_logger.warning(f"Invalid serializer data: {serializer.errors}")
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# @api_view(['POST'])
-# @permission_classes([AllowAny])  # Allow unauthenticated users to verify OTPs
-# def verify_otp_email_view(request):
-#     start_time = time.time()
-#     users_logger.info("Received request to verify OTP.")
-#     serializer = OTPSerializer(data=request.data)
-#     if serializer.is_valid():
-#         email = serializer.validated_data['email']
-#         otp = serializer.validated_data['otp']
-#         users_logger.debug(f"Validated data - Email: {email}, OTP Code: {otp}")
 
-#         try:
-#             user = User.objects.filter(username=email).first()
-#             users_logger.info(f"Found user for OTP verification: {email}")
-#         except User.DoesNotExist:
-#             users_logger.warning(f"User with email {email} does not exist.")
-#             return Response({"detail": "User with this email does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
-#         try:
-#             success, message = verify_otp(user,otp)
-#             print('success',success)
-#             if success:
-#                 users_logger.info(f"OTP verified successfully for user: {email}")
-#                 # Generate JWT tokens
-#                 refresh = RefreshToken.for_user(user)
-#                 refresh['username'] = user.username
-#                 refresh['user_id'] = str(user.id)
-#                 access_token = str(refresh.access_token)
-#                 users_logger.debug(f"Generated JWT tokens for user: {email}")
-#                 end_time = time.time()
-#                 print(f"Function execution time: {end_time - start_time} seconds")
-#                 return Response({
-#                     "detail": message,
-#                    'refresh': str(refresh),
-#                     'access': access_token
-#                 }, status=status.HTTP_200_OK)
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Allow unauthenticated users to verify OTPs
+def verify_otp_email_view(request):
+    start_time = time.time()
+    users_logger.info("Received request to verify OTP.")
+    serializer = OTPSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        users_logger.debug(f"Validated data - Email: {email}, OTP Code: {otp}")
+
+        try:
+            user = User.objects.filter(username=email).first()
+            users_logger.info(f"Found user for OTP verification: {email}")
+        except User.DoesNotExist:
+            users_logger.warning(f"User with email {email} does not exist.")
+            return Response({"detail": "User with this email does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            success, message = verify_otp(user,otp)
+            print('success',success)
+            if success:
+                users_logger.info(f"OTP verified successfully for user: {email}")
+                # Generate JWT tokens
+                refresh = RefreshToken.for_user(user)
+                refresh['username'] = user.username
+                refresh['user_id'] = str(user.id)
+                access_token = str(refresh.access_token)
+                users_logger.debug(f"Generated JWT tokens for user: {email}")
+                end_time = time.time()
+                print(f"Function execution time: {end_time - start_time} seconds")
+                return Response({
+                    "detail": message,
+                   'refresh': str(refresh),
+                    'access': access_token
+                }, status=status.HTTP_200_OK)
                 
 
-#             else:
-#                 users_logger.warning(f"OTP verification failed for user: {email}. Reason: {message}")
-#                 return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as e:
-#             users_logger.error(f"Error during OTP verification for user {email}: {str(e)}")
-#             return Response({"detail": "Internal server error during OTP verification."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                users_logger.warning(f"OTP verification failed for user: {email}. Reason: {message}")
+                return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            users_logger.error(f"Error during OTP verification for user {email}: {str(e)}")
+            return Response({"detail": "Internal server error during OTP verification."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-#     users_logger.warning(f"Invalid serializer data: {serializer.errors}")
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    users_logger.warning(f"Invalid serializer data: {serializer.errors}")
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
