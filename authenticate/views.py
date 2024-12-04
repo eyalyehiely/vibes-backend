@@ -31,7 +31,7 @@ class MyTokenObtainPairView(TokenObtainPairView):
 @api_view(['POST'])
 def signup(request):
     # Get common data from request
-    username = request.data.get('phone_number')
+    username = request.data.get('email')
     first_name = request.data.get('first_name')
     last_name = request.data.get('last_name')
     gender = request.data.get('gender')
@@ -43,8 +43,8 @@ def signup(request):
         return Response({'error': 'User with this phone number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        if not validate_phone_number(username):
-            return Response({'error': 'Invalid phone number'}, status=status.HTTP_400_BAD_REQUEST)
+        # if not validate_phone_number(username):
+        #     return Response({'error': 'Invalid phone number'}, status=status.HTTP_400_BAD_REQUEST)
             # Create the CustomUser instance 
         user = CustomUser.objects.create(
             username=username,  # Use phone number as the username
@@ -169,10 +169,13 @@ def verify_otp_email_view(request):
                 end_time = time.time()
                 print(f"Function execution time: {end_time - start_time} seconds")
                 return Response({
+                    'status':200,
+                    'user_id':user.id,
                     "detail": message,
                    'refresh': str(refresh),
                     'access': access_token
                 }, status=status.HTTP_200_OK)
+            
                 
 
             else:
@@ -232,25 +235,24 @@ def user_details(request, user_id):
             return Response({'error': 'Error deleting user from the database'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-@api_view(['POST','GET'])
-# @permission_classes([AllowAny])
+
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])  # Ensure only authenticated users can access
 def manage_route(request):
     openai.api_key = os.getenv('OPEN_AI_API')
     user = request.user
 
     if request.method == 'POST':
-        # if not request.user.is_authenticated:
-        #     return Response({"error": "Authentication is required."}, status=401)
-
         # Extract data from the request
         time = request.data.get('time', '')
         company = request.data.get('company', '')
         cost = request.data.get('cost', '')
-        kind_of_activity = request.data.get('kind_of_activity', '')
+        activity_type = request.data.get('activity_type', '')
         area = request.data.get('area', '')
 
-        logger.info(f"Parameters: time={time}, company={company}, cost={cost}, kind_of_activity={kind_of_activity}, area={area}")
-
+        users_logger.info(f"Parameters: time={time}, company={company}, cost={cost}, activity_type={activity_type}, area={area}")
+        if company=='myself':
+            company = 'no one'
         # Cache key for activity data
         cache_key = f"activity_data_{user.id}"
         activity_data = cache.get(cache_key, [])
@@ -258,9 +260,10 @@ def manage_route(request):
         try:
             # Format user input for the AI
             route_user_message = (
-                f"Hi chat, I want you to build an activity for {time} with {company}. "
-                f"The estimated cost for the activity should be {cost}. "
-                f"The kind of activity I want to do is {kind_of_activity}, and the area should be {area}."
+                f"Hi chat, I want you to give me options for a future activity in {time} with {company}. "
+                f"The estimated cost for the activity should be around {cost}. "
+                f"The kind of activity I want to do is {activity_type}, and the area should be {area}."
+                f"please provide me your 2 best options based on the data i provide you."
             )
 
             # Call OpenAI API for conversation
@@ -275,14 +278,14 @@ def manage_route(request):
             )
 
             ai_message = response['choices'][0]['message']['content'].strip()
-            logger.info(f"OpenAI response: {ai_message}")
+            users_logger.info(f"OpenAI response: {ai_message}")
 
             # Append activity data and cache it
             new_activity = {
                 'time': time,
                 'company': company,
                 'cost': cost,
-                'kind_of_activity': kind_of_activity,
+                'activity_type': activity_type,
                 'area': area,
                 'ai_suggestion': ai_message,
                 'timestamp': timezone.now().isoformat(),
@@ -291,52 +294,51 @@ def manage_route(request):
             cache.set(cache_key, activity_data, timeout=600)  # Cache for 10 minutes
 
             # Save activity to the database
-            Activity.objects.create(
-                user=user,  # Fixed user assignment
-                activity_type=kind_of_activity.upper().replace(" ", "_"),
+            new_activity = Activity.objects.create(
+                user=user,  # Ensure user is a CustomUser instance
+                activity_type=activity_type.upper().replace(" ", "_"),
                 title=f"Suggested Activity for {time}",
                 time=time,
-                cost=float(cost) if cost else None,  # Fixed cost handling
+                cost=float(cost) if cost else None,
                 area=area,
                 company=company,
                 ai_suggestion=ai_message,
             )
 
-            return Response({'user_input': route_user_message, 'ai_response': ai_message}, status=200)
+            return Response({'user_input': route_user_message, 'ai_response': ai_message,'route_id':new_activity.id}, status=200)
 
         except Exception as e:
-            logger.error(f"Error occurred for user {user.username if user.is_authenticated else 'Anonymous'}: {str(e)}", exc_info=True)
+            users_logger.error(f"Error occurred for user {user.username}: {str(e)}", exc_info=True)
             return Response({'error': str(e)}, status=500)
+
     elif request.method == 'GET':
-            # Cache key for activity data
-            cache_key = f"activity_data_{user.id}"
-            
-            # Check for cached data
-            activity_data = cache.get(cache_key)
-            if activity_data:
-                return Response({'activities': activity_data}, status=200)
+        # Cache key for activity data
+        cache_key = f"activity_data_{user.id}"
 
-            # If no cache, fetch activities from the database
-            activities = Activity.objects.filter(user=user).order_by('-created_at')
-            activity_list = [
-                {
-                    'id': activity.id,
-                    'title': activity.title,
-                    'type': activity.activity_type,
-                    'time': activity.time,
-                    'price': activity.price,
-                    'area': activity.area,
-                    'company': activity.company,
-                    'created_at': activity.created_at.isoformat(),
-                }
-                for activity in activities
-            ]
+        # Check for cached data
+        activity_data = cache.get(cache_key)
+        if activity_data:
+            return Response({'activities': activity_data}, status=200)
 
-            # Cache the data for future requests
-            cache.set(cache_key, activity_list, timeout=600)  # Cache for 10 minutes
-            return Response({'activities': activity_list}, status=200)
+        # If no cache, fetch activities from the database
+        activities = Activity.objects.filter(user=user).order_by('-created_at')
+        activity_list = [
+            {
+                'id': activity.id,
+                'title': activity.title,
+                'type': activity.activity_type,
+                'time': activity.time,
+                'cost': activity.cost,
+                'area': activity.area,
+                'company': activity.company,
+                'created_at': activity.created_at.isoformat(),
+            }
+            for activity in activities
+        ]
 
-
+        # Cache the data for future requests
+        cache.set(cache_key, activity_list, timeout=600)  # Cache for 10 minutes
+        return Response({'activities': activity_list}, status=200)
 
 
 
@@ -352,7 +354,7 @@ def contact_us_mail(request):
     sender = request.user.username
 
     if not contact_message or not contact_subject or not sender:
-        logger.error("Invalid request: missing required fields")
+        users_logger.error("Invalid request: missing required fields")
         return Response({"error": "Missing Message, Subject, or sender"}, status=400)
 
     # Build the email message
