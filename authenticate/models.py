@@ -82,18 +82,15 @@ class Otp(models.Model):
 class Activity(models.Model):
     ACTIVITY_TYPES = [
         ('WATCH_MOVIE', 'Watching a Movie'),
-        ('READ_BOOK', 'Reading a Book'),
         ('PLAY_GAME', 'Playing a Game'),
-        ('LISTEN_MUSIC', 'Listening to Music'),
+        ('DINING_OUT', 'Dining Out'),
+        ('WINE', 'Wine'),
+        ('PARTY', 'Party'),
+        ('BOWLING', 'bowling')
     ]
 
-    ACTIVITY_TIME = [
-        ('MORNING', 'Morning'),
-        ('NOON', 'Noon'),
-        ('AFTERNOON', 'Afternoon'),
-        ('EVENING', 'Evening'),
-        ('NIGHT', 'Night'),
-    ]
+    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         CustomUser,
@@ -105,49 +102,23 @@ class Activity(models.Model):
         choices=ACTIVITY_TYPES,
         help_text="The type of activity."
     )
-    title = models.CharField(
-        max_length=255,
-    )
-  
-    time = models.CharField(
-        max_length=20,
-        choices=ACTIVITY_TIME,
-    )
-    cost = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-    )
-    area = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-    )
-    company = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-    )
-    ai_suggestion= models.CharField( max_length=255,
-        null=True,
-        blank=True,)
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-    )
+    title = models.CharField(max_length=255)
+    time = models.DateTimeField(max_length=20)
+    cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    area = models.CharField(max_length=255, null=True, blank=True)
+    company = models.CharField(max_length=255, null=True, blank=True, default='myself')
+    # latitude = models.FloatField(null=True, blank=True)
+    # longitude = models.FloatField(null=True, blank=True)
+    ai_suggestion = models.CharField(max_length=255, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Activities'
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.get_activity_type_display()} - {self.title}"
-    
-
-    class Meta:
-        verbose_name_plural = 'Activities'
-
-    def __str__(self):
-        return f"{self.user.username} - {self.get_activity_type_display()} - {self.title}"
-
-
