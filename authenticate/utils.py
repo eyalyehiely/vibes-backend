@@ -12,30 +12,46 @@ logger = logging.getLogger('auth')
 
 User = get_user_model()
 
+
+from time import sleep
+
+def send_email_with_retry(msg, retries=3, delay=5):
+    for attempt in range(retries):
+        try:
+            context = ssl.create_default_context(cafile=certifi.where())
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+                server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+                server.send_message(msg)
+            logger.info(f"Sent OTP to {msg['To']}.")
+            return
+        except Exception as e:
+            logger.error(f"Failed to send OTP email on attempt {attempt + 1}: {e}")
+            if attempt < retries - 1:
+                sleep(delay)
+            else:
+                raise e
+            
+
 def generate_otp_code():
     """Generate a 6-digit random OTP code."""
     return f"{random.randint(100000, 999999)}"
 
 def generate_and_send_otp(user):
-    otp = generate_otp_code()
-    msg = EmailMessage()
-    msg.set_content(f"Hi {user.username.split('@')[0].capitalize()},\n Your One-Time Password (OTP) for account verification is: {otp}.\n This OTP is valid for the next 5 minutes.\n Please do not share this code with anyone for security purposes.")
-    msg['Subject'] = 'Vibes OTP Code'
-    msg['From'] = EMAIL_HOST_USER
-    msg['To'] = user.username
-
-
-
-    # Save OTP to the database
-    otp_record = Otp.objects.create(user=user)
-    otp_record.set_code(otp)
-    otp_record.save()
     try:
+        otp = generate_otp_code()
+        # Save OTP to the database
+        otp_record = Otp.objects.create(user=user)
+        otp_record.set_code(otp)
         otp_record.save()
         logger.info(f"OTP entry saved for user: {user.username}")
     except Exception as e:
         logger.error(f"Failed to save OTP for user {user.username}: {e}")
         raise
+    msg = EmailMessage()
+    msg.set_content(f"Hi {user.username.split('@')[0].capitalize()},\n Your One-Time Password (OTP) for account verification is: {otp}.\n This OTP is valid for the next 5 minutes.\n Please do not share this code with anyone for security purposes.")
+    msg['Subject'] = 'Vibes OTP Code'
+    msg['From'] = EMAIL_HOST_USER
+    msg['To'] = user.username
     # Create a secure SSL context using certifi
     context = ssl.create_default_context(cafile=certifi.where())
 
@@ -45,6 +61,7 @@ def generate_and_send_otp(user):
             server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
             server.send_message(msg)
         logger.info(f"Sent OTP to {user.username}.")
+
     except Exception as e:
         logger.error(f"Failed to send OTP email: {e}")
         raise
@@ -95,11 +112,11 @@ def verify_otp(user, otp_code):
 def can_request_otp(user):
     """
     Check if the user can request a new OTP based on rate limiting.
-    Example: Max 5 OTP requests per hour.
+    Example: Max 10 OTP requests per hour.
     """
     time_threshold = timezone.now() - timedelta(hours=1)
     recent_otps = Otp.objects.filter(user=user, created_at__gte=time_threshold).count()
-    return recent_otps < 5  # Allow up to 5 OTP requests per hour
+    return recent_otps < 10  # Allow up to 10 OTP requests per hour
 
 
 
