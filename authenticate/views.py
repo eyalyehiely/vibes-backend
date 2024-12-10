@@ -1,3 +1,5 @@
+import json
+from django.shortcuts import get_object_or_404
 import logging,time,openai,ssl,certifi,smtplib,os
 from rest_framework.response import Response
 from rest_framework import status
@@ -19,6 +21,10 @@ from vibes.settings import EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 from django.utils import timezone
 from django.core.cache import cache
 from email.message import EmailMessage
+from django.utils.timezone import make_aware
+from dateutil.parser import parse
+
+
 
 users_logger = logging.getLogger('users')
 
@@ -115,12 +121,12 @@ def send_otp_email_view(request):
             logger.error(f"Error querying or creating user for email {email}: {str(e)}")
             return Response({"detail": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # if not can_request_otp(user):
-        #     logger.warning(f"OTP request limit exceeded for user: {email}")
-        #     return Response(
-        #         {"detail": "OTP request limit exceeded. Please try again later."},
-        #         status=status.HTTP_429_TOO_MANY_REQUESTS
-        #     )
+        if not can_request_otp(user):
+            logger.warning(f"OTP request limit exceeded for user: {email}")
+            return Response(
+                {"detail": "OTP request limit exceeded. Please try again later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
 
         try:
             generate_and_send_otp(user)
@@ -245,25 +251,45 @@ def manage_route(request):
     if request.method == 'POST':
         # Extract data from the request
         time = request.data.get('time', '')
-        company = request.data.get('company', '')
+        company = request.data.get('company', 'myself')
         cost = request.data.get('cost', '')
         activity_type = request.data.get('activity_type', '')
         area = request.data.get('area', '')
 
         users_logger.info(f"Parameters: time={time}, company={company}, cost={cost}, activity_type={activity_type}, area={area}")
-        if company=='myself':
-            company = 'no one'
+
         # Cache key for activity data
         cache_key = f"activity_data_{user.id}"
         activity_data = cache.get(cache_key, [])
 
         try:
+            # Convert naive datetime to timezone-aware
+            if time:
+                naive_datetime = parse(time)  
+                time = make_aware(naive_datetime)
+
             # Format user input for the AI
             route_user_message = (
                 f"Hi chat, I want you to give me options for a future activity in {time} with {company}. "
-                f"The estimated cost for the activity should be around {cost}. "
-                f"The kind of activity I want to do is {activity_type}, and the area should be {area}."
-                f"please provide me your 2 best options based on the data i provide you."
+                f"The estimated cost for the activity should be not more than {cost} ils. "
+                f"The kind of activity I want to do is {activity_type}, and the area should be {area}. "
+                f"Please provide me your 2 best options (in hebrew) based on the data I provide you."
+                f'''Return the response in JSON format as:
+                [
+                    {{
+                        "Activity": "Activity Name",
+                        "Location": "Location Details",
+                        "Estimated Cost": "Cost Estimate",
+                        "Description": "Description of the activity"
+                    }},
+                    {{
+                        "Activity": "Activity Name",
+                        "Location": "Location Details",
+                        "Estimated Cost": "Cost Estimate",
+                        "Description": "Description of the activity"
+                    }}
+                ]
+                '''
             )
 
             # Call OpenAI API for conversation
@@ -273,44 +299,60 @@ def manage_route(request):
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": route_user_message},
                 ],
-                max_tokens=150,
+                max_tokens=300,
                 temperature=0.7,
             )
 
             ai_message = response['choices'][0]['message']['content'].strip()
             users_logger.info(f"OpenAI response: {ai_message}")
 
-            # Append activity data and cache it
-            new_activity = {
+            # Clean AI response and parse as JSON
+            try:
+                clean_ai_message = ai_message.strip("```").replace("json", "").strip()
+                ai_response_json = json.loads(clean_ai_message)
+            except json.JSONDecodeError as e:
+                users_logger.error(f"Failed to parse AI response as JSON: {str(e)}")
+                return Response({'error': 'AI response could not be parsed as JSON.'}, status=500)
+
+            # Prepare structured suggestion with both options
+            combined_ai_suggestion = {
+                "option_1": ai_response_json[0],
+                "option_2": ai_response_json[1],
+            }
+
+            # Save activity to the database
+            saved_activity = Activity.objects.create(
+                user=user,
+                activity_type=activity_type.upper().replace(" ", "_"),
+                title=f"Suggested Activities for {time}",
+                time=time,
+                cost=float(cost) if cost else None,
+                area=area,
+                company=company,
+                ai_suggestion=json.dumps(combined_ai_suggestion),  # Save both options as JSON
+            )
+
+            # Cache activity data
+            activity_data.append({
                 'time': time,
                 'company': company,
                 'cost': cost,
                 'activity_type': activity_type,
                 'area': area,
-                'ai_suggestion': ai_message,
+                'ai_suggestion': combined_ai_suggestion,
                 'timestamp': timezone.now().isoformat(),
-            }
-            activity_data.append(new_activity)
+            })
             cache.set(cache_key, activity_data, timeout=600)  # Cache for 10 minutes
 
-            # Save activity to the database
-            new_activity = Activity.objects.create(
-                user=user,  # Ensure user is a CustomUser instance
-                activity_type=activity_type.upper().replace(" ", "_"),
-                title=f"Suggested Activity for {time}",
-                time=time,
-                cost=float(cost) if cost else None,
-                area=area,
-                company=company,
-                ai_suggestion=ai_message,
-            )
-
-            return Response({'user_input': route_user_message, 'ai_response': ai_message,'route_id':new_activity.id}, status=200)
+            return Response({
+                'user_input': route_user_message,
+                'ai_response': combined_ai_suggestion,
+                'route_id': saved_activity.id,
+            }, status=200)
 
         except Exception as e:
             users_logger.error(f"Error occurred for user {user.username}: {str(e)}", exc_info=True)
             return Response({'error': str(e)}, status=500)
-
     elif request.method == 'GET':
         # Cache key for activity data
         cache_key = f"activity_data_{user.id}"
@@ -331,6 +373,7 @@ def manage_route(request):
                 'cost': activity.cost,
                 'area': activity.area,
                 'company': activity.company,
+                'ai_suggestion': activity.ai_suggestion,
                 'created_at': activity.created_at.isoformat(),
             }
             for activity in activities
@@ -340,6 +383,33 @@ def manage_route(request):
         cache.set(cache_key, activity_list, timeout=600)  # Cache for 10 minutes
         return Response({'activities': activity_list}, status=200)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])  # Ensure only authenticated users can access
+def route_details(request, route_id):
+    try:
+        # Fetch the route or raise 404 if not found
+        activity = get_object_or_404(Activity, id=route_id)
+
+        # Construct the response data
+        activity_data = {
+            'id': activity.id,
+            'title': activity.title,
+            'type': activity.activity_type,
+            'time': activity.time,
+            'cost': activity.cost,
+            'area': activity.area,
+            'company': activity.company,
+            'ai_suggestion': activity.ai_suggestion,
+            'created_at': activity.created_at.isoformat(),
+        }
+
+        # Return the response
+        return Response(activity_data, status=200)
+
+    except Exception as e:
+        # Handle unexpected errors
+        return Response({'error': f"An error occurred: {str(e)}"}, status=500)
 
 
 
@@ -354,16 +424,26 @@ def contact_us_mail(request):
     sender = request.user.username
 
     if not contact_message or not contact_subject or not sender:
-        users_logger.error("Invalid request: missing required fields")
-        return Response({"error": "Missing Message, Subject, or sender"}, status=400)
+        logger.error("Invalid request: missing required fields")
+        return Response({"error": "Missing Message, Subject, or Sender"}, status=400)
 
     # Build the email message
     msg = EmailMessage()
-    msg.set_content(f"A message from: {sender}\n The message: {contact_message}")
-    msg['Subject'] = contact_subject
+    msg.set_content(
+        f"""
+        A message from: {sender}
+        -------------------------
+        Subject: {contact_subject}
+        -------------------------
+        Message:
+        {contact_message}
+        """
+    )
+    msg['Subject'] = f"Contact Us: {contact_subject}"
     msg['From'] = EMAIL_HOST_USER
     msg['To'] = EMAIL_HOST_USER
 
+    # Use SSL context for secure email sending
     context = ssl.create_default_context(cafile=certifi.where())
 
     try:
@@ -375,19 +455,62 @@ def contact_us_mail(request):
         # Log success
         logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
         end_time = time.time()  # Track end time
-        logger.info(f"Function execution time: {end_time - start_time} seconds")
+        logger.info(f"Function execution time: {end_time - start_time:.2f} seconds")
 
         # Return success response
         return Response({"message": "Email sent successfully"}, status=200)
 
-    except Exception as e:
+    except smtplib.SMTPException as e:
         # Log the error
-        logger.error(f"Failed to send email: {e}", exc_info=True)
-        return Response({"error": "Failed to send email"}, status=500)
+        logger.error(f"SMTP error occurred: {e}", exc_info=True)
+        return Response({"error": "Failed to send email due to SMTP error"}, status=500)
 
+    except Exception as e:
+        # Log unexpected errors
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        return Response({"error": "Failed to send email due to unexpected error"}, status=500)
 
     
 
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_profile_pic(request, user_id):
+    try:
+        # Try fetching the Talent object first
+        user = CustomUser.objects.filter(id=user_id).first()
+        if not user:
+            users_logger.debug(f"Profile not found for {user_id}")
+            return Response({'message': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Handle POST request for uploading profile picture
+        if request.method == 'POST':
+            if 'profile_picture' not in request.FILES:
+                users_logger.debug(f"No profile picture file provided for {user_id}")
+                return Response({'message': 'No profile picture file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Upload the new profile picture
+            user.profile_picture = request.FILES['profile_picture']
+            user.save()
+
+            users_logger.debug(f"Profile picture saved for {user_id}")
+            return Response({'message': 'Profile picture uploaded successfully!'}, status=status.HTTP_200_OK)
+
+        # Handle DELETE request for deleting profile picture
+        elif request.method == 'DELETE':
+            if user.user_picture:
+                # Delete the user picture file and update the model
+                user.profile_picture.delete()
+                user.save()
+
+                users_logger.debug(f"Profile picture deleted for {user_id}")
+                return Response({'message': 'Profile picture deleted successfully!'}, status=status.HTTP_200_OK)
+            else:
+                users_logger.debug(f"No profile picture to delete for {user_id}")
+                return Response({'message': 'No profile picture to delete'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        users_logger.error(f"Error managing profile picture for {user_id}: {str(e)}")
+        return Response({'message': 'An error occurred while managing the profile picture', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
