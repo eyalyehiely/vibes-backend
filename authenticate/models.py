@@ -5,7 +5,7 @@ import uuid,datetime
 from django.utils import timezone
 
 def profile_picture_upload_path(instance, filename):
-    return f'assets/users/{instance.user_id}/profile_pictures/{filename}'
+    return f'assets/users/{instance.id}/profile_pictures/{filename}'
 
 
 
@@ -107,8 +107,6 @@ class Activity(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     area = models.CharField(max_length=255, null=True, blank=True)
     company = models.CharField(max_length=255, null=True, blank=True, default='myself')
-    # latitude = models.FloatField(null=True, blank=True)
-    # longitude = models.FloatField(null=True, blank=True)
     ai_suggestion = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
