@@ -6,7 +6,7 @@ from .models import CustomUser, Otp, Activity
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     # Define the fields to display in the admin list view
-    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture')
+    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture','favorite_places')
     # Enable searching by username and gender
     search_fields = ('username', 'gender')
     # Add filters for gender and birth_date
@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
     # Group fields for detail view
     fieldsets = (
         (None, {'fields': ('username', 'password', 'accept_terms')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture','favorite_places')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
     # Fields for the add form

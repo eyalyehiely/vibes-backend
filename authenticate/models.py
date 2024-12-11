@@ -16,7 +16,7 @@ class CustomUser(AbstractUser):
     gender = models.CharField(max_length=255, blank=True, null=True)
     birth_date = models.DateField(default=datetime.date.today, blank=True, null=True)
     profile_picture = models.ImageField(upload_to=profile_picture_upload_path, blank=True, null=True)
-    favorite_activities = models.JSONField(default=list, blank=True)
+    favorite_places = models.JSONField(default=list, blank=True)
 
     # Override the related_name to avoid conflicts
     groups = models.ManyToManyField(
