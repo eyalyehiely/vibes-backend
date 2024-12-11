@@ -1,14 +1,15 @@
 
-import random,ssl,certifi,smtplib,logging
+import random,ssl,certifi,smtplib,logging,requests,math,os
 from datetime import timedelta
 from django.utils import timezone
 from .models import *
 from django.contrib.auth import get_user_model
 from email.message import EmailMessage
 from vibes.settings import EMAIL_HOST_PASSWORD,EMAIL_HOST_USER
-import math
 
-logger = logging.getLogger('auth')
+
+
+users_logger = logging.getLogger('users')
 
 User = get_user_model()
 
@@ -22,10 +23,10 @@ def send_email_with_retry(msg, retries=3, delay=5):
             with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
                 server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
                 server.send_message(msg)
-            logger.info(f"Sent OTP to {msg['To']}.")
+            users_logger.info(f"Sent OTP to {msg['To']}.")
             return
         except Exception as e:
-            logger.error(f"Failed to send OTP email on attempt {attempt + 1}: {e}")
+            users_logger.error(f"Failed to send OTP email on attempt {attempt + 1}: {e}")
             if attempt < retries - 1:
                 sleep(delay)
             else:
@@ -43,12 +44,16 @@ def generate_and_send_otp(user):
         otp_record = Otp.objects.create(user=user)
         otp_record.set_code(otp)
         otp_record.save()
-        logger.info(f"OTP entry saved for user: {user.username}")
+        users_logger.info(f"OTP entry saved for user: {user.username}")
     except Exception as e:
-        logger.error(f"Failed to save OTP for user {user.username}: {e}")
+        users_logger.error(f"Failed to save OTP for user {user.username}: {e}")
         raise
     msg = EmailMessage()
-    msg.set_content(f"Hi {user.username.split('@')[0].capitalize()},\n Your One-Time Password (OTP) for account verification is: {otp}.\n This OTP is valid for the next 5 minutes.\n Please do not share this code with anyone for security purposes.")
+    msg.set_content(f"""שלום {user.username.split('@')[0].capitalize()},
+    קוד האימות החד-פעמי (OTP) שלך לאימות החשבון הוא: {otp}.
+    קוד זה תקף ל-5 הדקות הקרובות.
+    אנא אל תשתף את הקוד עם אף אחד למען אבטחת המידע שלך.
+    """)    
     msg['Subject'] = 'Vibes OTP Code'
     msg['From'] = EMAIL_HOST_USER
     msg['To'] = user.username
@@ -56,14 +61,14 @@ def generate_and_send_otp(user):
     context = ssl.create_default_context(cafile=certifi.where())
 
     try:
-        logger.info(f"Attempting to send email via SMTP server: {EMAIL_HOST_USER} with SSL")
+        users_logger.info(f"Attempting to send email via SMTP server: {EMAIL_HOST_USER} with SSL")
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
             server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
             server.send_message(msg)
-        logger.info(f"Sent OTP to {user.username}.")
+        users_logger.info(f"Sent OTP to {user.username}.")
 
     except Exception as e:
-        logger.error(f"Failed to send OTP email: {e}")
+        users_logger.error(f"Failed to send OTP email: {e}")
         raise
 
 def verify_otp(user, otp_code):
@@ -74,14 +79,14 @@ def verify_otp(user, otp_code):
         
         # Check if the retrieved OTP is for the same user
         if otp.user != user:
-            logger.error(f"Retrieved OTP for a different user. Expected {user.username}, but got {otp.user.username}.")
+            users_logger.error(f"Retrieved OTP for a different user. Expected {user.username}, but got {otp.user.username}.")
             return False, "Invalid OTP entry."
 
-        logger.debug(f"Retrieved OTP entry: {otp} for user: {user.username}")
+        users_logger.debug(f"Retrieved OTP entry: {otp} for user: {user.username}")
         
         # Check if the OTP has expired
         if otp.is_expired():
-            logger.info(f"OTP expired for user: {user.username}")
+            users_logger.info(f"OTP expired for user: {user.username}")
             return False, "OTP has expired."
         
         # Check if the provided OTP code is correct
@@ -89,24 +94,24 @@ def verify_otp(user, otp_code):
             # print(otp.check_code(otp_code))
             otp.is_used = True
             otp.save()
-            logger.info(f"OTP verified successfully for user: {user.username}")
+            users_logger.info(f"OTP verified successfully for user: {user.username}")
             return True, "OTP verified successfully."
         else:
             otp.attempt_count += 1
             otp.save()
-            logger.warning(f"Invalid OTP code provided for user: {user.username}. Attempt {otp.attempt_count}/5")
+            users_logger.warning(f"Invalid OTP code provided for user: {user.username}. Attempt {otp.attempt_count}/5")
             
             # Optional: Handle exceeding max OTP attempts
             if otp.attempt_count >= 5:
                 otp.is_used = True
                 otp.save()
-                logger.warning(f"Maximum OTP attempts exceeded for user: {user.username}")
+                users_logger.warning(f"Maximum OTP attempts exceeded for user: {user.username}")
                 return False, "Maximum OTP attempts exceeded. Please request a new OTP."
             
             return False, "Invalid OTP."
     
     except Otp.DoesNotExist:
-        logger.warning(f"No OTP found for user: {user.username}")
+        users_logger.warning(f"No OTP found for user: {user.username}")
         return False, "No OTP found. Please request a new one."
     
 def can_request_otp(user):
@@ -136,3 +141,92 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     r = 6371  # Radius of earth in kilometers
     return r * c  # Distance in kilometers
+
+
+
+def get_place_phone_number(place_id):
+    GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
+    url = f'https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&key={GOOGLE_PLACES_API_KEY}'
+    result = requests.get(url)
+    data = result.json()
+
+    if data['status'] == 'OK':
+        # Use .get() to safely access keys
+        return data['result'].get('international_phone_number', 'Phone number not available')
+    else:
+        # Log error for debugging
+        users_logger.error(f"Place Details API failed for place_id {place_id}: {data.get('status')}")
+        return 'Phone number not available'
+
+
+
+
+def signup_email(user):
+    try:
+        msg = EmailMessage()
+        msg.set_content(f"""<!DOCTYPE html>
+        <html lang="he" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    direction: rtl;
+                    text-align: right;
+                }}
+                .header {{
+                    color: #333;
+                    font-size: 24px;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }}
+                .content {{
+                    color: #555;
+                    font-size: 18px;
+                    margin-bottom: 20px;
+                }}
+                .footer {{
+                    color: #777;
+                    font-size: 16px;
+                    font-style: italic;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">שלום {user.first_name},</div>
+            <div class="content">
+                שמחים מאוד שהצטרפת אלינו! ברוך הבא למשפחת הפלטפורמה שלנו. אנו בטוחים שתמצא כאן את כל מה שאתה צריך כדי להצליח ולהתקדם.
+                <br><br>
+                כדי להתחיל, אנו ממליצים לך לעדכן את הפרופיל שלך ולחקור את הכלים והאפשרויות הזמינות עבורך.
+                <br><br>
+                אם יש לך שאלות או שתרצה עזרה, אל תהסס לפנות אלינו - אנחנו כאן בשבילך.
+            </div>
+            <div class="footer">
+                תודה שבחרת להצטרף אלינו,<br>
+                צוות הפלטפורמה
+            </div>
+        </body>
+        </html>
+        """, subtype='html')
+        msg['Subject'] = 'ברוך הבא לפלטפורמה שלנו'
+        msg['From'] = EMAIL_HOST_USER
+        msg['To'] = user.username
+
+        # Create a secure SSL context using certifi
+        context = ssl.create_default_context(cafile=certifi.where())
+
+        try:
+            users_logger.info(f"Attempting to send email via SMTP server: {EMAIL_HOST_USER} with SSL")
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+                server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+                server.send_message(msg)
+            users_logger.info(f"Welcome email sent to {user.username}.")
+
+        except Exception as e:
+            users_logger.error(f"Failed to send welcome email: {e}")
+            raise
+
+    except Exception as e:
+        users_logger.error(f"Failed to send welcome email: {e}")
+        raise
