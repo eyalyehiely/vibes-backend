@@ -1,6 +1,7 @@
 import json
 from django.shortcuts import get_object_or_404
 import logging,time,openai,ssl,certifi,smtplib,os
+import requests
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -23,6 +24,7 @@ from django.core.cache import cache
 from email.message import EmailMessage
 from django.utils.timezone import make_aware
 from dateutil.parser import parse
+GOOGLE_PLACES_API_KEY=os.getenv('GOOGLE_PLACES_API_KEY')
 
 
 
@@ -36,6 +38,7 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
 @api_view(['POST'])
 def signup(request):
+    start_time = time.time()
     # Get common data from request
     username = request.data.get('email')
     first_name = request.data.get('first_name')
@@ -69,6 +72,9 @@ def signup(request):
 
         access = refresh.access_token
         users_logger.debug(f'{username} created successfully')
+        signup_email(user=user)
+        end_time = time.time()
+        users_logger.info('total time', {start_time-end_time})
         
         # Return the response with JWT tokens
         return Response({
@@ -98,31 +104,31 @@ def logout(request):
 @permission_classes([AllowAny]) 
 def send_otp_email_view(request):
     start_time = time.time()
-    logger.info("Received request to send OTP email.")
+    users_logger.info("Received request to send OTP email.")
     serializer = EmailSerializer(data=request.data)
     if serializer.is_valid():
         email = serializer.validated_data['username']
-        logger.debug(f"Validated email: {email}")
+        users_logger.debug(f"Validated email: {email}")
         try:
             user = CustomUser.objects.filter(username=email).first()
             if user:
-                logger.info(f"Found existing user for email: {email}")
+                users_logger.info(f"Found existing user for email: {email}")
             else:
-                logger.info(f"No existing user found for email: {email}.")
+                users_logger.info(f"No existing user found for email: {email}.")
                 return Response({"detail": "User doesnt exist."}, status=status.HTTP_404_NOT_FOUND)
                 # user = User.objects.create(username=email)
                 # user.set_unusable_password()
                 # user.save()
-                # logger.debug(f"Created new user with email: {email}")
+                # users_logger.debug(f"Created new user with email: {email}")
                 
 
 
         except Exception as e:
-            logger.error(f"Error querying or creating user for email {email}: {str(e)}")
+            users_logger.error(f"Error querying or creating user for email {email}: {str(e)}")
             return Response({"detail": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if not can_request_otp(user):
-            logger.warning(f"OTP request limit exceeded for user: {email}")
+            users_logger.warning(f"OTP request limit exceeded for user: {email}")
             return Response(
                 {"detail": "OTP request limit exceeded. Please try again later."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS
@@ -424,7 +430,7 @@ def contact_us_mail(request):
     sender = request.user.username
 
     if not contact_message or not contact_subject or not sender:
-        logger.error("Invalid request: missing required fields")
+        users_logger.error("Invalid request: missing required fields")
         return Response({"error": "Missing Message, Subject, or Sender"}, status=400)
 
     # Build the email message
@@ -453,21 +459,21 @@ def contact_us_mail(request):
             server.send_message(msg)
 
         # Log success
-        logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
+        users_logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
         end_time = time.time()  # Track end time
-        logger.info(f"Function execution time: {end_time - start_time:.2f} seconds")
+        users_logger.info(f"Function execution time: {end_time - start_time:.2f} seconds")
 
         # Return success response
         return Response({"message": "Email sent successfully"}, status=200)
 
     except smtplib.SMTPException as e:
         # Log the error
-        logger.error(f"SMTP error occurred: {e}", exc_info=True)
+        users_logger.error(f"SMTP error occurred: {e}", exc_info=True)
         return Response({"error": "Failed to send email due to SMTP error"}, status=500)
 
     except Exception as e:
         # Log unexpected errors
-        logger.error(f"Unexpected error: {e}", exc_info=True)
+        users_logger.error(f"Unexpected error: {e}", exc_info=True)
         return Response({"error": "Failed to send email due to unexpected error"}, status=500)
 
     
@@ -515,94 +521,163 @@ def manage_profile_pic(request, user_id):
 
 
 
-# @api_view(['GET'])
+@api_view(['GET'])
 # @permission_classes([IsAuthenticated])
-# def get_nearby_places(request):
-#     start_time = time.time()
+def get_nearby_places(request):
+    start_time = time.time()
 
-#     # Get the latitude, longitude, radius, and category from the request
-#     user_lat = request.GET.get('latitude')
-#     user_lng = request.GET.get('longitude')
-#     radius = request.GET.get('radius', 3000)  # Default radius is 3km
-#     category = request.GET.get('category', '')
+    # Get the latitude, longitude, radius, and category from the request
+    user_lat = request.GET.get('latitude')
+    user_lng = request.GET.get('longitude')
+    radius = request.GET.get('radius', 3000)  # Default radius is 3km
+    category = request.GET.get('category', '')
 
-#     # Log the received parameters
-#     place_users_logger.info(f"Received parameters: Latitude: {user_lat}, Longitude: {user_lng}, Radius: {radius}, Category: {category}")
+    # Log the received parameters
+    users_logger.info(f"Received parameters: Latitude: {user_lat}, Longitude: {user_lng}, Radius: {radius}, Category: {category}")
 
-#     # Validate latitude and longitude
-#     if not user_lat or not user_lng:
-#         place_users_logger.error("Missing latitude or longitude in request")
-#         return Response({'error': 'Missing latitude or longitude'}, status=400)
+    # Validate latitude and longitude
+    if not user_lat or not user_lng:
+        users_logger.error("Missing latitude or longitude in request")
+        return Response({'error': 'Missing latitude or longitude'}, status=400)
 
-#     # Map categories to Google Places types
-#     category_map = {
-#         'Restaurants': 'restaurant',
-#         'Attractions': 'tourist_attraction',
-#         'Accommodations': 'lodging'
-#     }
-#     place_type = category_map.get(category, None)
+    # Map categories to Google Places types
+    category_map = {
+        'Restaurants': 'restaurant',
+        'Attractions': 'tourist_attraction',
+        'Accommodations': 'lodging',
+        'Cafe':'cafe',
+    }
+    place_type = category_map.get(category, None)
 
-#     # Google Places API URL
-#     google_places_url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+    # Google Places API URL
+    google_places_url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 
-#     # Parameters to pass to the Google Places API
-#     params = {
-#         'location': f'{user_lat},{user_lng}',
-#         'radius': radius,
-#         'key': GOOGLE_PLACES_API_KEY
-#     }
+    # Parameters to pass to the Google Places API
+    params = {
+        'location': f'{user_lat},{user_lng}',
+        'radius': radius,
+        'key': GOOGLE_PLACES_API_KEY
+    }
 
-#     # Add category type if available
-#     if place_type:
-#         params['type'] = place_type
+    # Add category type if available
+    if place_type:
+        params['type'] = place_type
 
-#     # Log the outgoing API request
-#     place_users_logger.info(f"Making request to Google Places API with params: {params}")
+    # Log the outgoing API request
+    users_logger.info(f"Making request to Google Places API with params: {params}")
 
-#     # Make the request to the Google Places API
-#     try:
-#         response = requests.get(google_places_url, params=params)
-#         response.raise_for_status()  # Raise an exception if the response code is not 200
-#     except requests.RequestException as e:
-#         place_users_logger.error(f"Error fetching data from Google Places API: {e}")
-#         return Response({'error': 'Failed to fetch data from Google Places API'}, status=500)
+    # Make the request to the Google Places API
+    try:
+        response = requests.get(google_places_url, params=params)
+        response.raise_for_status()  # Raise an exception if the response code is not 200
+    except requests.RequestException as e:
+        users_logger.error(f"Error fetching data from Google Places API: {e}")
+        return Response({'error': 'Failed to fetch data from Google Places API'}, status=500)
 
-#     places_data = response.json()
+    places_data = response.json()
 
-#     # Log the response from Google Places API
-#     place_users_logger.info(f"Google Places API response status: {response.status_code}, Data: {places_data}")
+    # Log the response from Google Places API
+    users_logger.info(f"Google Places API response status: {response.status_code}, Data: {places_data}")
 
-#     # Extract relevant data from the response
-#     results = []
-#     if 'results' in places_data:
-#         for place in places_data['results']:
-#             place_location = place.get('geometry', {}).get('location', {})
-#             place_lat = place_location.get('lat')
-#             place_lng = place_location.get('lng')
+    # Extract relevant data from the response
+    results = []
+    if 'results' in places_data:
+        for place in places_data['results']:
+            place_location = place.get('geometry', {}).get('location', {})
+            place_lat = place_location.get('lat')
+            place_lng = place_location.get('lng')
 
-#             if place_lat and place_lng:
-#                 # Calculate the distance between the user's location and the place
-#                 distance = haversine(float(user_lat), float(user_lng), place_lat, place_lng)
-#             else:
-#                 distance = None
+            if place_lat and place_lng:
+                # Calculate the distance between the user's location and the place
+                distance = haversine(float(user_lat), float(user_lng), place_lat, place_lng)
+            else:
+                distance = None
 
-#             if distance <= float(radius):
-#                 place_info = {
-#                     'id':place.get('place_id'),
-#                     'name': place.get('name'),
-#                     'type': place.get('types', []),
-#                     'location': place_location,
-#                     'distance': f"{distance:.2f} km" if distance is not None else 'Unknown',
-#                     'rating': place.get('rating', 'No rating available'),
-#                     'opening_hours': place.get('opening_hours', {}).get('open_now', 'No hours available')
-#                 }
-#                 results.append(place_info)
+            
+            if distance <= float(radius):
+                place_info = {
+                    'id':place.get('place_id'),
+                    'name': place.get('name'),
+                    'type': place.get('types', []),
+                    'location': place_location,
+                    'distance': f"{distance:.2f} km" if distance is not None else 'Unknown',
+                    'rating': place.get('rating', 'No rating available'),
+                    'opening_hours': place.get('opening_hours', {}).get('open_now', 'No hours available'),
+                    'phone_number':get_place_phone_number(str(place.get('place_id')))
+                }
+                results.append(place_info)
 
-#     # Log the number of places found
-#     place_users_logger.info(f"Found {len(results)} places near location: {user_lat}, {user_lng}")
+    # Log the number of places found
+    users_logger.info(f"Found {len(results)} places near location: {user_lat}, {user_lng}")
 
-#     # Return the data as JSON
-#     end_time = time.time()
-#     place_users_logger.info(f"Function execution time: {end_time - start_time} seconds")
-#     return Response({'places': results}, status=200)
+    # Return the data as JSON
+    end_time = time.time()
+    users_logger.info(f"Function execution time: {end_time - start_time} seconds")
+    return Response({'places': results}, status=200)
+
+
+
+
+
+
+@api_view(['PUT', 'GET', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_favorite_place(request, user_id):
+    
+    try:
+        # Fetch the user
+        user = CustomUser.objects.filter(id=user_id).first()
+        if not user:
+            users_logger.warning(f"User {user_id} not found")
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "GET":
+            # Retrieve user details
+            users_logger.info(f"Retrieving details for user {user_id}")
+            serializer = CustomUserSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        elif request.method == "PUT":
+            # Add a new favorite place
+            place_data = request.data.get('place')
+            if not place_data:
+                users_logger.warning(f"No 'place' data provided for user {user_id}")
+                return Response({'error': 'No place data provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Ensure place_id uniqueness
+            place_data['id'] = str(uuid.uuid4())
+            user.favorite_places.append(place_data)
+            users_logger.info(f"Added new place for user {user_id}: {place_data}")
+
+            # Update user
+            serializer = CustomUserSerializer(user, data={'favorite_places': user.favorite_places}, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                users_logger.info(f"Favorite places updated successfully for user {user_id}")
+                return Response({'message': 'Place added successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+            else:
+                users_logger.warning(f"Validation errors while updating user {user_id}: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif request.method == "DELETE":
+            # Get 'place_id' from the URL
+            place_id = request.query_params.get('place_id') or request.data.get('place_id')
+            if not place_id:
+                return Response({'error': 'Place ID not provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Filter favorite places
+            updated_places = [place for place in user.favorite_places if place.get('id') != place_id]
+            if len(updated_places) == len(user.favorite_places):
+                return Response({'error': 'Place not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            user.favorite_places = updated_places
+            user.save()
+            return Response({'message': 'Place deleted successfully', 'favorite_places': user.favorite_places}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        users_logger.error(f"An error occurred for user {user_id}: {e}")
+        return Response({'error': 'An internal error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
 
