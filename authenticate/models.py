@@ -10,13 +10,22 @@ def profile_picture_upload_path(instance, filename):
 
 
 class CustomUser(AbstractUser):
+    GENDER_CHOICES = {
+        ('זכר', 'זכר'),
+        ('נקבה', 'נקבה'),
+        ('אחר', 'אחר'),
+        }
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.EmailField(unique=True)
     accept_terms = models.BooleanField(default=True)
-    gender = models.CharField(max_length=255, blank=True, null=True)
+    gender = models.CharField(max_length=4, choices=GENDER_CHOICES, blank=True, null=True)
     birth_date = models.DateField(default=datetime.date.today, blank=True, null=True)
     profile_picture = models.ImageField(upload_to=profile_picture_upload_path, blank=True, null=True)
     favorite_places = models.JSONField(default=list, blank=True)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    search_friends = models.BooleanField(default=False)
 
     # Override the related_name to avoid conflicts
     groups = models.ManyToManyField(
@@ -81,12 +90,12 @@ class Otp(models.Model):
 
 class Activity(models.Model):
     ACTIVITY_TYPES = [
-        ('WATCH_MOVIE', 'Watching a Movie'),
-        ('PLAY_GAME', 'Playing a Game'),
-        ('DINING_OUT', 'Dining Out'),
-        ('WINE', 'Wine'),
-        ('PARTY', 'Party'),
-        ('BOWLING', 'bowling')
+        ('לצפות בסרט', 'לצפות בסרט'),
+        ('לשחק', 'לשחק'),
+        ('מסעדה', 'מסעדה'),
+        ('יין', 'יין'),
+        ('מסיבה', 'מסיבה'),
+        ('באולינג', 'באולינג')
     ]
 
     
