@@ -264,3 +264,78 @@ def contact_us_email(sender, contact_subject, contact_message):
 
     # Log success
     users_logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
+
+
+
+
+def send_find_friends_email(recipent,user_first_name):
+    msg = EmailMessage()
+    msg.set_content(
+    f"""
+    הודעה מצוות התמיכה של Vibes
+    -------------------------
+    נושא: מישהו מעוניין להיפגש איתך
+    -------------------------
+    הודעה:
+    שלום,
+
+    {user_first_name} מעוניין/ת להיפגש איתך.
+
+    בברכה,
+    צוות Vibes
+    """
+)
+    msg['Subject'] = f"Vibes: {recipent} we find u a friend"
+    msg['From'] = EMAIL_HOST_USER
+    msg['To'] = recipent
+
+    # Use SSL context for secure email sending
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    # Send the email
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+        server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+        server.send_message(msg)
+
+    # Log success
+    users_logger.info(f"Email sent successfully from {EMAIL_HOST_USER} to {recipent}.")
+
+
+
+def send_list_of_friends_email(recipents, user):
+    # Assuming recipents is a list of friend dicts with 'first_name' and 'last_name'
+    friend_names = ', '.join([f"{f['first_name']} {f['last_name']}" for f in recipents])
+
+    msg = EmailMessage()
+    msg.set_content(
+    f"""
+    הודעה מצוות התמיכה של Vibes
+    -------------------------
+    נושא: היי {user.first_name}, מצאנו לך חברים חדשים!
+    -------------------------
+    הודעה:
+    שלום {user.first_name},
+
+    החברים הבאים מעוניינים להיפגש איתך:
+    {friend_names}
+
+    בברכה,
+    צוות Vibes
+    """
+)
+
+    msg['Subject'] = f"Vibes: {user.first_name}, we found you some friends!"
+    msg['From'] = EMAIL_HOST_USER
+    # Ensure this is a valid email address
+    msg['To'] = user.username
+
+    # Use SSL context for secure email sending
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+            server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+            server.send_message(msg)
+        users_logger.info(f"Email sent successfully from {EMAIL_HOST_USER} to {user.username}.")
+    except Exception as e:
+        users_logger.error(f"Error sending email: {e}")
