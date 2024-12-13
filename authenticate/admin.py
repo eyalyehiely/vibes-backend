@@ -6,7 +6,7 @@ from .models import CustomUser, Otp, Activity
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     # Define the fields to display in the admin list view
-    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture','favorite_places')
+    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude')
     # Enable searching by username and gender
     search_fields = ('username', 'gender')
     # Add filters for gender and birth_date
