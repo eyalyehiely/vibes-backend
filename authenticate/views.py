@@ -1,7 +1,6 @@
-import json
+
 from django.shortcuts import get_object_or_404
-import logging,time,openai,ssl,certifi,smtplib,os
-import requests
+import logging,time,openai,ssl,certifi,smtplib,os,requests,json
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -15,7 +14,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework import status
-from .utils import generate_and_send_otp, verify_otp, can_request_otp
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
 from vibes.settings import EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
@@ -429,54 +427,25 @@ def contact_us_mail(request):
     contact_subject = request.data.get('contactSubject')
     sender = request.user.username
 
-    if not contact_message or not contact_subject or not sender:
-        users_logger.error("Invalid request: missing required fields")
-        return Response({"error": "Missing Message, Subject, or Sender"}, status=400)
-
-    # Build the email message
-    msg = EmailMessage()
-    msg.set_content(
-        f"""
-        A message from: {sender}
-        -------------------------
-        Subject: {contact_subject}
-        -------------------------
-        Message:
-        {contact_message}
-        """
-    )
-    msg['Subject'] = f"Contact Us: {contact_subject}"
-    msg['From'] = EMAIL_HOST_USER
-    msg['To'] = EMAIL_HOST_USER
-
-    # Use SSL context for secure email sending
-    context = ssl.create_default_context(cafile=certifi.where())
-
     try:
+        # Validate required fields
+        if not contact_message or not contact_subject or not sender:
+            users_logger.error("Invalid request: missing required fields")
+            return Response({"error": "Missing Message, Subject, or Sender"}, status=400)
+
         # Send the email
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
-            server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
-            server.send_message(msg)
+        contact_us_email(sender=sender, contact_subject=contact_subject, contact_message=contact_message)
 
-        # Log success
-        users_logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
-        end_time = time.time()  # Track end time
+        end_time = time.time()
         users_logger.info(f"Function execution time: {end_time - start_time:.2f} seconds")
-
-        # Return success response
         return Response({"message": "Email sent successfully"}, status=200)
 
-    except smtplib.SMTPException as e:
-        # Log the error
-        users_logger.error(f"SMTP error occurred: {e}", exc_info=True)
-        return Response({"error": "Failed to send email due to SMTP error"}, status=500)
-
     except Exception as e:
-        # Log unexpected errors
-        users_logger.error(f"Unexpected error: {e}", exc_info=True)
-        return Response({"error": "Failed to send email due to unexpected error"}, status=500)
+        # Handle unexpected errors
+        users_logger.error(f"Error sending email: {str(e)}")
+        return Response({"error": "Failed to send email"}, status=500)
 
-    
+
 
 @api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])

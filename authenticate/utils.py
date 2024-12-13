@@ -1,11 +1,14 @@
 
 import random,ssl,certifi,smtplib,logging,requests,math,os
+import time
 from datetime import timedelta
 from django.utils import timezone
 from .models import *
 from django.contrib.auth import get_user_model
 from email.message import EmailMessage
 from vibes.settings import EMAIL_HOST_PASSWORD,EMAIL_HOST_USER
+from rest_framework.response import Response
+
 
 
 
@@ -230,3 +233,34 @@ def signup_email(user):
     except Exception as e:
         users_logger.error(f"Failed to send welcome email: {e}")
         raise
+
+
+
+
+
+def contact_us_email(sender, contact_subject, contact_message):
+    msg = EmailMessage()
+    msg.set_content(
+        f"""
+        A message from: {sender}
+        -------------------------
+        Subject: {contact_subject}
+        -------------------------
+        Message:
+        {contact_message}
+        """
+    )
+    msg['Subject'] = f"Contact Us: {contact_subject}"
+    msg['From'] = EMAIL_HOST_USER
+    msg['To'] = EMAIL_HOST_USER
+
+    # Use SSL context for secure email sending
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    # Send the email
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+        server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+        server.send_message(msg)
+
+    # Log success
+    users_logger.info(f"Email sent successfully from {sender} to {EMAIL_HOST_USER}.")
