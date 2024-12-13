@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'authenticate',
     'rest_framework_simplejwt',
     'corsheaders',
+    'channels'
 ]
 
 MIDDLEWARE = [
@@ -206,3 +207,22 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+
+
+ASGI_APPLICATION = 'vibes.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # Redis server
+        },
+    },
+}
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://localhost:5173",
+]

@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
     # Group fields for detail view
     fieldsets = (
         (None, {'fields': ('username', 'password', 'accept_terms')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture','favorite_places')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
     # Fields for the add form
