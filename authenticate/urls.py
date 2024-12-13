@@ -21,6 +21,7 @@ urlpatterns = [
     path('manage-profile-pic/<uuid:user_id>/',manage_profile_pic, name='manage_profile_pic'),
     path('manage-favorites/<uuid:user_id>/',manage_favorite_place, name='manage_favorite_place'),
     path('get-nearby-places/',get_nearby_places ,name='get_nearby_places'),
+    path('save-user-location/',save_user_location ,name='save_user_location'),
 
 ]
 if settings.DEBUG:

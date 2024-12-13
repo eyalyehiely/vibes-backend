@@ -1,6 +1,6 @@
 
 from django.shortcuts import get_object_or_404
-import logging,time,openai,ssl,certifi,smtplib,os,requests,json
+import logging,time,openai,os,requests,json
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -16,10 +16,8 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
-from vibes.settings import EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 from django.utils import timezone
 from django.core.cache import cache
-from email.message import EmailMessage
 from django.utils.timezone import make_aware
 from dateutil.parser import parse
 GOOGLE_PLACES_API_KEY=os.getenv('GOOGLE_PLACES_API_KEY')
@@ -246,7 +244,7 @@ def user_details(request, user_id):
         
 
 
-@api_view(['POST', 'GET'])
+@api_view(['POST', 'GET','PUT'])
 @permission_classes([IsAuthenticated])  # Ensure only authenticated users can access
 def manage_route(request):
     openai.api_key = os.getenv('OPEN_AI_API')
@@ -386,6 +384,25 @@ def manage_route(request):
         # Cache the data for future requests
         cache.set(cache_key, activity_list, timeout=600)  # Cache for 10 minutes
         return Response({'activities': activity_list}, status=200)
+    
+    elif request.method == 'PUT':
+        # Get the activity id from the request
+        activity_id = request.data.get('id')
+        if activity_id:
+            # Fetch the activity from the database
+            activity = Activity.objects.get(id=activity_id)
+            # Update the activity data
+            activity.title = request.data.get('title')
+            activity.time = request.data.get('time')
+            activity.cost = request.data.get('cost')
+            activity.area = request.data.get('area')
+            activity.company = request.data.get('company')
+            activity.ai_suggestion = request.data.get('ai_suggestion')
+            activity.save()
+            return Response({'message': 'Activity updated successfully'}, status=200)
+        else:
+            return Response({'error': 'Activity id not found'}, status=404)
+        
 
 
 @api_view(['GET'])
@@ -650,3 +667,20 @@ def manage_favorite_place(request, user_id):
 
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_user_location(request):
+    user = request.user
+    try:
+        # Get location data from request
+        user_lat = request.data.get('latitude')
+        user_long = request.data.get('longitude')
+        if not user_long or not user_lat:
+            return Response({'error': 'longitude or latitude not provided'}, status=status.HTTP_400_BAD_REQUEST)
+        user.longitude = user_long
+        user.latitude = user_lat
+        user.save()
+        return Response({'message': 'Location saved successfully'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        users_logger.error(f"An error occurred for user {user.id}: {e}")
+        return Response({'error': 'An internal error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
