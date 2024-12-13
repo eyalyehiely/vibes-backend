@@ -268,7 +268,7 @@ def contact_us_email(sender, contact_subject, contact_message):
 
 
 
-def send_find_friends_email(recipent,user_first_name):
+def send_friend_invitation_email(recipent,user_first_name):
     msg = EmailMessage()
     msg.set_content(
     f"""
