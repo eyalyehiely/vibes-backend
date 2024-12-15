@@ -85,9 +85,19 @@ WSGI_APPLICATION = 'vibes.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': BASE_DIR / 'db.sqlite3',
+    # }
+
+
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -132,9 +142,7 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    os.getenv('FRONTEND_URL',"http://localhost:5173")
-]
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -223,7 +231,13 @@ CHANNEL_LAYERS = {
     },
 }
 
+
 CSRF_TRUSTED_ORIGINS = [
-    os.getenv('BACKEND_URL',"http://localhost:8000"),
-    os.getenv('FRONTEND_URL',"http://localhost:5173")
+    "https://vibes-backend.up.railway.app",
+    "http://localhost:8000"
+    
+]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "https://vibes.up.railway.app"
 ]
