@@ -22,6 +22,9 @@ urlpatterns = [
     path('manage-favorites/<uuid:user_id>/',manage_favorite_place, name='manage_favorite_place'),
     path('get-nearby-places/',get_nearby_places ,name='get_nearby_places'),
     path('save-user-location/',save_user_location ,name='save_user_location'),
+    path('send-message/',manage_chat ,name='send_message'),
+    path('fetch-messages/',manage_chat ,name='fetch_messages'),
+    path('chats/',user_chats ,name='fetch_all_messages'),
 
 ]
 if settings.DEBUG:

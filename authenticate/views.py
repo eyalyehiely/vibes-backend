@@ -1,6 +1,6 @@
 
 from django.shortcuts import get_object_or_404
-import logging,time,openai,os,requests,json
+import logging,time,openai,os,requests,json,datetime,uuid
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -684,3 +684,127 @@ def save_user_location(request):
     except Exception as e:
         users_logger.error(f"An error occurred for user {user.id}: {e}")
         return Response({'error': 'An internal error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import ChatRoom, Message
+from .serializers import MessageSerializer
+import uuid
+import datetime
+from django.db.models import Q
+
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def manage_chat(request):
+    user = request.user
+
+    if request.method == 'POST':
+        data = request.data
+
+        # Ensure required fields are present
+        required_fields = ['content', 'sender', 'receiver']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            return Response(
+                {'error': f'Missing fields: {", ".join(missing_fields)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate UUID fields
+        try:
+            sender = uuid.UUID(data['sender'])
+            receiver = uuid.UUID(data['receiver'])
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid sender or receiver UUID'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Handle chat_room creation or retrieval
+        chat_room = None
+        if 'chat_room' in data and data['chat_room']:
+            try:
+                chat_room_id = uuid.UUID(data['chat_room'])
+                chat_room = ChatRoom.objects.get(id=chat_room_id)
+            except (ChatRoom.DoesNotExist, ValueError, TypeError):
+                return Response({'error': 'Invalid or non-existent chat room'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # Create a new chat room if not provided
+            chat_room, created = ChatRoom.objects.get_or_create(
+                Q(user=sender, friend=receiver) | Q(user=receiver, friend=sender),
+                defaults={'created_at': datetime.datetime.now()}
+            )
+
+        # Ensure the sender is part of the chat room
+        if str(user.id) not in [str(chat_room.user), str(chat_room.friend)]:
+            return Response(
+                {'error': 'You are not authorized to send messages in this chat room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Save the message
+        message_data = {
+            'chat_room': chat_room.id,
+            'sender': str(sender),
+            'receiver': str(receiver),
+            'content': data['content'],
+            'timestamp': datetime.datetime.now()
+        }
+        serializer = MessageSerializer(data=message_data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'GET':
+        # Retrieve messages for a specific chat room
+        chat_room_id = request.GET.get('chat_room')
+
+        if not chat_room_id:
+            return Response({'error': 'Chat room ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            chat_room = ChatRoom.objects.get(id=uuid.UUID(chat_room_id))
+        except (ChatRoom.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Chat room does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the user is part of the chat room
+        if str(user.id) not in [str(chat_room.user), str(chat_room.friend)]:
+            return Response(
+                {'error': 'You are not authorized to view messages in this chat room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Retrieve messages for the chat room
+        messages = Message.objects.filter(chat_room=chat_room).order_by('timestamp')
+        serializer = MessageSerializer(messages, many=True)
+
+        return Response(
+            {'chat_room': chat_room.id, 'messages': serializer.data},
+            status=status.HTTP_200_OK
+        )
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_chats(request):
+    user = request.user
+    try:
+        # Retrieve chat rooms where the user is either the user or the friend
+        chat_rooms = ChatRoom.objects.filter(models.Q(user=user.id) | models.Q(friend=user.id))
+
+        # Serialize the chat rooms
+        serializer = ChatRoomSerializer(chat_rooms, many=True)
+        
+        return Response(
+            {'message': f'Found {len(chat_rooms)} chat rooms', 'chats': serializer.data},
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

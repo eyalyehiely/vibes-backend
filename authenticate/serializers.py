@@ -43,7 +43,17 @@ class OTPSerializer(serializers.Serializer):
         fields = "__all__"
 
 
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = "__all__"
 
+
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'user', 'friend', 'created_at', 'deleted_at']
 
 # class CompleteProfileSerializer(serializers.ModelSerializer):
 #     class Meta:
