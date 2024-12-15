@@ -225,10 +225,10 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 ASGI_APPLICATION = 'vibes.asgi.application'
 
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [(os.getenv('REDIS_URL'))],  
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')],
         },
     },
 }
