@@ -164,7 +164,6 @@ class Message(models.Model):
     content = models.TextField(blank=False, null=False)  # Message content
     is_read = models.BooleanField(default=False)  # Indicates if the message is read
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)  # Message timestamp
-    deleted_at = models.DateTimeField(null=True, blank=True)  # Soft deletion support
 
     def __str__(self):
         return f"Message from {self.sender} to {self.receiver} at {self.timestamp}"
