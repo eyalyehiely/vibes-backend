@@ -1,12 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Otp, Activity
+from .models import *
 
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     # Define the fields to display in the admin list view
-    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude')
+    list_display = ('username', 'accept_terms', 'gender', 'age', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude',)
     # Enable searching by username and gender
     search_fields = ('username', 'gender')
     # Add filters for gender and birth_date
@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
     # Group fields for detail view
     fieldsets = (
         (None, {'fields': ('username', 'password', 'accept_terms')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'gender', 'birth_date', 'profile_picture','favorite_places','search_friends','longitude','latitude','friends')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
     # Fields for the add form
@@ -43,3 +43,24 @@ class ActivityAdmin(admin.ModelAdmin):
     list_filter = ('activity_type', 'time', 'created_at')
     search_fields = ('user__username', 'title', 'area', 'company', 'ai_suggestion')
     ordering = ('-created_at',)
+
+
+
+
+
+
+@admin.register(ChatRoom)
+class ChatRoomAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'friend', 'created_at')
+    # list_filter = ('created_at')
+    search_fields = ('user', 'friend')
+    ordering = ('-created_at',)
+
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'chat_room', 'sender', 'receiver', 'is_read', 'timestamp')
+    list_filter = ('is_read', 'timestamp')
+    search_fields = ('chat_room__id', 'sender', 'receiver', 'content')
+    ordering = ('-timestamp',)
+    readonly_fields = ('timestamp',)  # Make the timestamp read-only in the admin
