@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-#tohv4pmb0sxk*=eb8()9fujgvhc&zv2da&&3%m@#vnpz54=3h'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -168,6 +168,8 @@ SIMPLE_JWT = {
 AUTH_USER_MODEL = 'authenticate.CustomUser'
 
 
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOGS_DIR, exist_ok=True) 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -175,18 +177,17 @@ LOGGING = {
         'simpleRe': {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
-        }
+        },
     },
     'handlers': {
         'users_file': {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.handlers.TimedRotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/users.log'),
+            'filename': os.path.join(LOGS_DIR, 'users.log'),
             'formatter': 'simpleRe',
             'when': 'midnight',
             'backupCount': 7,
         },
-
         'console': {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
@@ -199,8 +200,9 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': True,
         },
+    },
 }
-}
+
 
 
 MEDIA_URL = '/media/'
