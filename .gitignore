@@ -4,3 +4,4 @@ logs/
 .DS/
 media/
 .env
+staticfiles/
