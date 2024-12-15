@@ -26,6 +26,7 @@ class CustomUser(AbstractUser):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     search_friends = models.BooleanField(default=False)
+    friends = models.JSONField(blank=True, null=True)
 
     # Override the related_name to avoid conflicts
     groups = models.ManyToManyField(
@@ -129,3 +130,44 @@ class Activity(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.get_activity_type_display()} - {self.title}"
+
+
+
+
+class ChatRoom(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.UUIDField()  # UUID of the logged-in user
+    friend = models.UUIDField()  # UUID of the friend
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+    def __str__(self):
+        return f"ChatRoom between {self.user} and {self.friend}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(user=models.F('friend')),
+                name='prevent_self_chat'
+            ),
+        ]
+        unique_together = ['user', 'friend']  # Ensure a single chat room per user-friend pair
+
+
+class Message(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    chat_room = models.ForeignKey(
+        ChatRoom, related_name='messages', on_delete=models.CASCADE
+    )
+    sender = models.UUIDField(db_index=True)  # UUID of the message sender
+    receiver = models.UUIDField(db_index=True)  # UUID of the message receiver
+    content = models.TextField(blank=False, null=False)  # Message content
+    is_read = models.BooleanField(default=False)  # Indicates if the message is read
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)  # Message timestamp
+    deleted_at = models.DateTimeField(null=True, blank=True)  # Soft deletion support
+
+    def __str__(self):
+        return f"Message from {self.sender} to {self.receiver} at {self.timestamp}"
+
+    class Meta:
+        ordering = ['timestamp']  # Default ordering by timestamp
