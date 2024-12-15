@@ -1,6 +1,7 @@
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from asgiref.sync import sync_to_async
 from geopy.distance import geodesic
 import json
 import logging
@@ -60,6 +61,7 @@ class FriendSearchConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         users_logger.info(f"User {getattr(self, 'user', 'Unknown')} disconnected with code {close_code}.")
 
+        
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -88,6 +90,8 @@ class FriendSearchConsumer(AsyncWebsocketConsumer):
             active_users = await self.fetch_active_users(self.user.id)
             users_logger.debug(f"Active users fetched: {active_users}")
             friends_data = []
+            if self.user.friends is None:
+                self.user.friends = []
 
             for friend in active_users:
                 if friend['latitude'] is not None and friend['longitude'] is not None:
@@ -95,17 +99,81 @@ class FriendSearchConsumer(AsyncWebsocketConsumer):
                     if distance <= radius:
                         friend['distance'] = round(distance, 2)
                         users_logger.debug(f"About to send email to {friend['username']} from user {self.user.username}")
-                        send_friend_invitation_email(friend['username'], self.user.first_name)
-                        users_logger.debug("Email sending function called.")
-                        friends_data.append(friend)
-            if len(friends_data)>0:
-                send_list_of_friends_email(friends_data,self.user)
+
+                        # Wrap synchronous function in `sync_to_async`
+                        await sync_to_async(send_friend_invitation_email)(friend['username'], self.user.first_name)
+                        
+                        # Check if the friend is already in the user's friends list
+                        if not any(f['id'] == friend['id'] for f in self.user.friends):
+                            # Append the friend's details if they are not already in the list
+                            self.user.friends.append(
+                                {
+                                    'id': friend['id'],
+                                    'first_name': friend['first_name'],
+                                    'last_name': friend['last_name'],
+                                    'username': friend['username'],
+                                }
+                            )
+                            await sync_to_async(self.user.save)()  # Save the updated user object
+
+                            users_logger.debug("Email sending function called.")
+                            friends_data.append(friend)
+                        else:
+                            users_logger.debug(f"Friend {friend['id']} is already in the user's friends list.")
+
+            # Send a list of friends email if applicable
+            if len(friends_data) > 0:
+                await sync_to_async(send_list_of_friends_email)(friends_data, self.user)
 
             users_logger.debug(f"Serialized friends data: {friends_data}")
             await self.send(json.dumps({'friends': friends_data}))
+
         except json.JSONDecodeError:
             users_logger.error("Invalid JSON format received.")
             await self.send(json.dumps({'error': 'Invalid JSON format.'}))
         except Exception as e:
             users_logger.error(f"Error in receive method: {e}")
             await self.send(json.dumps({'error': 'An internal error occurred. Please try again later.'}))
+
+
+
+# --------------------------------------------chat app----------------------------------------------------------------
+
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room_group_name = 'chat_room'
+
+        # Join the chat room
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave the chat room
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        message = data.get('message', '')
+
+        # Broadcast the message to the group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message,
+                'sender': self.scope['user'].username if self.scope['user'].is_authenticated else 'Anonymous'
+            }
+        )
+
+    async def chat_message(self, event):
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'message': event['message'],
+            'sender': event['sender']
+        }))
