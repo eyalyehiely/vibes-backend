@@ -761,25 +761,26 @@ def manage_chat(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'GET':
-        # Retrieve messages for a specific chat room
+    # Retrieve chat_room_id from query params
         chat_room_id = request.GET.get('chat_room')
 
         if not chat_room_id:
             return Response({'error': 'Chat room ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            chat_room = ChatRoom.objects.get(id=uuid.UUID(chat_room_id))
+            # Validate and retrieve the chat room
+            chat_room = ChatRoom.objects.get(id=chat_room_id)
         except (ChatRoom.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Chat room does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Ensure the user is part of the chat room
+        # Ensure the requesting user is part of the chat room
         if str(user.id) not in [str(chat_room.user), str(chat_room.friend)]:
             return Response(
                 {'error': 'You are not authorized to view messages in this chat room.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Retrieve messages for the chat room
+        # Retrieve and serialize messages for the chat room
         messages = Message.objects.filter(chat_room=chat_room).order_by('timestamp')
         serializer = MessageSerializer(messages, many=True)
 
