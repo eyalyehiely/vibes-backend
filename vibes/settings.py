@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-#tohv4pmb0sxk*=eb8()9fujgvhc&zv2da&&3%m@#vnpz54=3h
 # DEBUG = os.getenv('DEBUG', 'False') == 'True'
 DEBUG=True
 
-ALLOWED_HOSTS = ['vibes.up.railway.app']
+ALLOWED_HOSTS = ['vibes.up.railway.app','https://vibes.up.railway.app']
 
 
 # Application definition
