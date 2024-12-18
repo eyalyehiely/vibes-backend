@@ -244,3 +244,4 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://vibes.up.railway.app"
 ]
+users_logger.info("Django settings loaded successfully 2")
