@@ -11,11 +11,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-import os
+import os,logging
 from datetime import timedelta
 from dotenv import load_dotenv
 load_dotenv()
-
+users_logger = logging.getLogger('users')
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -220,7 +220,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
-
+users_logger.info("Django settings loaded successfully")
 
 ASGI_APPLICATION = 'vibes.asgi.application'
 
@@ -232,6 +232,7 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
 
 
 CSRF_TRUSTED_ORIGINS = [
