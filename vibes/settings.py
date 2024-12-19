@@ -239,7 +239,7 @@ CHANNEL_LAYERS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f'{os.getenv(REDIS_LOCATION)}/1',
+        'LOCATION': f'{os.getenv('REDIS_LOCATION')}/1',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
