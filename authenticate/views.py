@@ -275,8 +275,8 @@ def manage_route(request):
                 f"Hi chat, I want you to give me options for a future activity in {time} with {company}. "
                 f"The estimated cost for the activity should be not more than {cost} ils. "
                 f"The kind of activity I want to do is {activity_type}, and the area should be {area}. "
-                f"Please provide me your 2 best options (in hebrew) based on the data I provide you."
-                f'''Return the response in JSON format as:
+                f"Please respond only in JSON format. Do not include any extra text, code snippets, or explanations. "
+                f'''Your JSON response must follow this format:
                 [
                     {{
                         "Activity": "Activity Name",
@@ -290,8 +290,7 @@ def manage_route(request):
                         "Estimated Cost": "Cost Estimate",
                         "Description": "Description of the activity"
                     }}
-                ]
-                '''
+                ]'''
             )
 
             # Call OpenAI API for conversation
