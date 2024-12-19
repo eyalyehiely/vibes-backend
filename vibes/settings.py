@@ -24,13 +24,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#tohv4pmb0sxk*=eb8()9fujgvhc&zv2da&&3%m@#vnpz54=3h'
+SECRET_KEY = os.getenv('SECRET_KEY', 'unsafe-default-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = os.getenv('DEBUG', 'False') == 'True'
-DEBUG=True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+# DEBUG=True
 
-ALLOWED_HOSTS = ['https://vibes-backend.up.railway.app','https://vibes.up.railway.app']
+ALLOWED_HOSTS = ['vibes-backend.up.railway.app', '127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -239,12 +239,13 @@ CHANNEL_LAYERS = {
 
 CSRF_TRUSTED_ORIGINS = [
     "https://vibes-backend.up.railway.app",
-    "http://localhost:8000"
-    
+    "http://localhost:8000",
+    "https://localhost:8000",
 ]
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "https://vibes.up.railway.app"
+    "http://localhost:5173",  # Local Vite frontend
+    "https://vibes.up.railway.app",  # Deployed Vite frontend
+    "https://vibes-backend.up.railway.app",  # Optional: For backend-originated requests
 ]
 users_logger.info("Django settings loaded successfully 2")
 
@@ -254,7 +255,7 @@ users_logger.info("Django settings loaded successfully 2")
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')  # Your AWS access key
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')  # Your AWS secret key
 AWS_STORAGE_BUCKET_NAME = 'vibess3'
-AWS_S3_REGION_NAME = 'Asia Pacific (Sydney) ap-southeast-2'  # e.g., 'us-west-1'
+AWS_S3_REGION_NAME = 'ap-southeast-2'
 AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 
 # Static files settings
