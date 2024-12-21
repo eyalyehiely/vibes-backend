@@ -159,9 +159,13 @@ class Message(models.Model):
     chat_room = models.ForeignKey(
         ChatRoom, related_name='messages', on_delete=models.CASCADE
     )
-    sender = models.UUIDField(db_index=True)  # UUID of the message sender
-    receiver = models.UUIDField(db_index=True)  # UUID of the message receiver
-    content = models.TextField(blank=False, null=False)  # Message content
+    # sender = models.UUIDField(db_index=True)  # UUID of the message sender
+    # receiver = models.UUIDField(db_index=True)  # UUID of the message receiver
+    # content = models.TextField(blank=False, null=False)  # Message content
+    chat_room = models.ForeignKey('ChatRoom', on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey('authenticate.CustomUser', on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey('authenticate.CustomUser', on_delete=models.CASCADE, related_name='received_messages')
+    content = models.TextField(blank=False, null=False)
     is_read = models.BooleanField(default=False)  # Indicates if the message is read
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)  # Message timestamp
 

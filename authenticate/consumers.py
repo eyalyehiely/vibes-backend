@@ -161,16 +161,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         data = json.loads(text_data)
         message_type = data.get('type', 'chat_message')
-        
+
         if message_type == 'chat_message':
             message = data.get('message', '')
             sender_id = data.get('sender')
             receiver_id = data.get('receiver')
-            
-            # Save message to database
+
+            # Save the message to the database
             await self.save_message(sender_id, receiver_id, message)
 
-            # Send message to room group
+            # Send the message to the WebSocket group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -195,11 +195,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, sender_id, receiver_id, content):
         from authenticate.models import Message, ChatRoom
-        
         chat_room = ChatRoom.objects.get(id=self.room_id)
+        
+        # Use the correct field names
+        sender = CustomUser.objects.get(id=sender_id)
+        receiver = CustomUser.objects.get(id=receiver_id)
+        
         Message.objects.create(
             chat_room=chat_room,
-            sender_id=sender_id,
-            receiver_id=receiver_id,
+            sender=sender,
+            receiver=receiver,
             content=content
         )
