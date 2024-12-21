@@ -20,10 +20,9 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.utils.timezone import make_aware
 from dateutil.parser import parse
+from django.db.models import Q
+
 GOOGLE_PLACES_API_KEY=os.getenv('GOOGLE_PLACES_API_KEY')
-
-
-
 users_logger = logging.getLogger('users')
 
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -731,16 +730,6 @@ def save_user_location(request):
 
 
 
-
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from .models import ChatRoom, Message
-from .serializers import MessageSerializer
-import uuid
-import datetime
-from django.db.models import Q
 
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
