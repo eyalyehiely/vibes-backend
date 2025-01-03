@@ -25,6 +25,7 @@ urlpatterns = [
     path('send-message/',manage_chat ,name='send_message'),
     path('fetch-messages/',manage_chat ,name='fetch_messages'),
     path('chats/',user_chats ,name='fetch_all_messages'),
+    path('search-friends/',search_friend ,name='search_friend'),
 
 ]
 if settings.DEBUG:

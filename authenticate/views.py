@@ -845,3 +845,12 @@ def user_chats(request):
 
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def search_friend(request):
+    user = request.user
+    cache.set(f'search_friend_{user.id}', True, timeout=3600)  # Set for 1 hour
+    return Response({'message': 'Search friend activated for 1 hour'}, status=200)
