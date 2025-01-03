@@ -858,29 +858,29 @@ def search_friend(request):
     user = request.user
 
     try:
-        # Check the current search_friend status from the cache
+        # Check the current search_friends status from the cache
         cache_key = f'search_friend_{user.id}'
         is_active = cache.get(cache_key)
 
         if is_active:
             # If already active, deactivate it
             cache.delete(cache_key)  # Remove from cache
-            user.search_friend = False
+            user.search_friends = False  # Use the correct property name
             user.save()
-            users_logger.info(f"Deactivated search_friend for user {user.id} ({user.username})")
+            users_logger.info(f"Deactivated search_friends for user {user.id} ({user.username})")
             return Response({'message': 'Search friend deactivated successfully'}, status=200)
 
-        # Activate search_friend
-        user.search_friends = True
+        # Activate search_friends
+        user.search_friends = True  # Use the correct property name
         user.save()
-        users_logger.info(f"Activated search_friend for user {user.id} ({user.username})")
+        users_logger.info(f"Activated search_friends for user {user.id} ({user.username})")
 
         # Set the status in the cache for 1 hour
         cache.set(cache_key, True, timeout=3600)
 
-        # Schedule a task to reset search_friend after 1 hour
+        # Schedule a task to reset search_friends after 1 hour
         reset_search_friend.apply_async((user.id,), countdown=3600)
-        users_logger.info(f"Scheduled task to deactivate search_friend for user {user.id} in 1 hour")
+        users_logger.info(f"Scheduled task to deactivate search_friends for user {user.id} in 1 hour")
 
         return Response({'message': 'Search friend activated for 1 hour'}, status=200)
 
