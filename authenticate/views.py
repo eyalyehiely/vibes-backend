@@ -310,15 +310,19 @@ def manage_route(request):
             try:
                 clean_ai_message = ai_message.strip("```").replace("json", "").strip()
                 ai_response_json = json.loads(clean_ai_message)
+
+                # Ensure the response contains at least two options
+                if len(ai_response_json) < 2:
+                    users_logger.error("AI response does not contain two options.")
+                    return Response({'error': 'AI response does not contain enough options.'}, status=500)
+
+                combined_ai_suggestion = {
+                    "option_1": ai_response_json[0],
+                    "option_2": ai_response_json[1],
+                }
             except json.JSONDecodeError as e:
                 users_logger.error(f"Failed to parse AI response as JSON: {str(e)}")
                 return Response({'error': 'AI response could not be parsed as JSON.'}, status=500)
-
-            # Prepare structured suggestion with both options
-            combined_ai_suggestion = {
-                "option_1": ai_response_json[0],
-                "option_2": ai_response_json[1],
-            }
 
             # Save activity to the database
             saved_activity = Activity.objects.create(
