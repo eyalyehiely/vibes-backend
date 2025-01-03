@@ -262,6 +262,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://vibes.up.railway.app",  # Deployed Vite frontend
     "https://vibes-backend.up.railway.app",  # Optional: For backend-originated requests
 ]
+CORS_ALLOW_CREDENTIALS = True
 users_logger.info("Django settings loaded successfully 2")
 
 
