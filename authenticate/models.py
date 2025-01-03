@@ -117,7 +117,7 @@ class Activity(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     area = models.CharField(max_length=255, null=True, blank=True)
     company = models.CharField(max_length=255, null=True, blank=True, default='myself')
-    ai_suggestion = models.CharField(max_length=255, null=True, blank=True)
+    ai_suggestion = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
