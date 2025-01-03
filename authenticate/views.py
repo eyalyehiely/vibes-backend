@@ -848,9 +848,42 @@ def user_chats(request):
     
 
 
+
+from .tasks import reset_search_friend
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def search_friend(request):
     user = request.user
-    cache.set(f'search_friend_{user.id}', True, timeout=3600)  # Set for 1 hour
-    return Response({'message': 'Search friend activated for 1 hour'}, status=200)
+
+    try:
+        # Check the current search_friend status from the cache
+        cache_key = f'search_friend_{user.id}'
+        is_active = cache.get(cache_key)
+
+        if is_active:
+            # If already active, deactivate it
+            cache.delete(cache_key)  # Remove from cache
+            user.search_friend = False
+            user.save()
+            users_logger.info(f"Deactivated search_friend for user {user.id} ({user.username})")
+            return Response({'message': 'Search friend deactivated successfully'}, status=200)
+
+        # Activate search_friend
+        user.search_friend = True
+        user.save()
+        users_logger.info(f"Activated search_friend for user {user.id} ({user.username})")
+
+        # Set the status in the cache for 1 hour
+        cache.set(cache_key, True, timeout=3600)
+
+        # Schedule a task to reset search_friend after 1 hour
+        reset_search_friend.apply_async((user.id,), countdown=3600)
+        users_logger.info(f"Scheduled task to deactivate search_friend for user {user.id} in 1 hour")
+
+        return Response({'message': 'Search friend activated for 1 hour'}, status=200)
+
+    except Exception as e:
+        users_logger.error(f"Error processing search friend request for user {user.id} ({user.username}): {str(e)}", exc_info=True)
+        return Response({'error': 'An error occurred while processing your request.'}, status=500)
