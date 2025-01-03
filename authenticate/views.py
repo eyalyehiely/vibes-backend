@@ -871,7 +871,7 @@ def search_friend(request):
             return Response({'message': 'Search friend deactivated successfully'}, status=200)
 
         # Activate search_friend
-        user.search_friend = True
+        user.search_friends = True
         user.save()
         users_logger.info(f"Activated search_friend for user {user.id} ({user.username})")
 
