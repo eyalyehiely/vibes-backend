@@ -466,46 +466,51 @@ def contact_us_mail(request):
 
 
 
-# @api_view(['POST', 'DELETE'])
-# @permission_classes([IsAuthenticated])
-# def manage_profile_pic(request, user_id):
-#     try:
-#         # Try fetching the Talent object first
-#         user = CustomUser.objects.filter(id=user_id).first()
-#         if not user:
-#             users_logger.debug(f"Profile not found for {user_id}")
-#             return Response({'message': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_profile_pic(request):
+    try:
+        user = request.user  # Directly use the authenticated user
 
-#         # Handle POST request for uploading profile picture
-#         if request.method == 'POST':
-#             if 'profile_picture' not in request.FILES:
-#                 users_logger.debug(f"No profile picture file provided for {user_id}")
-#                 return Response({'message': 'No profile picture file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'POST':
+            if 'profile_picture' not in request.FILES:
+                users_logger.debug(f"No profile picture file provided for user {user.id}")
+                return Response({'message': 'No profile picture file provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # Upload the new profile picture
-#             user.profile_picture = request.FILES['profile_picture']
-#             user.save()
+            file = request.FILES['profile_picture']
 
-#             users_logger.debug(f"Profile picture saved for {user_id}")
-#             return Response({'message': 'Profile picture uploaded successfully!'}, status=status.HTTP_200_OK)
+            # Validate file type and size
+            ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/gif']
+            MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
-#         # Handle DELETE request for deleting profile picture
-#         elif request.method == 'DELETE':
-#             if user.user_picture:
-#                 # Delete the user picture file and update the model
-#                 user.profile_picture.delete()
-#                 user.save()
+            if file.content_type not in ALLOWED_CONTENT_TYPES:
+                users_logger.debug(f"Unsupported file type: {file.content_type} for user {user.id}")
+                return Response({'message': 'Unsupported file type'}, status=status.HTTP_400_BAD_REQUEST)
 
-#                 users_logger.debug(f"Profile picture deleted for {user_id}")
-#                 return Response({'message': 'Profile picture deleted successfully!'}, status=status.HTTP_200_OK)
-#             else:
-#                 users_logger.debug(f"No profile picture to delete for {user_id}")
-#                 return Response({'message': 'No profile picture to delete'}, status=status.HTTP_404_NOT_FOUND)
+            if file.size > MAX_UPLOAD_SIZE:
+                users_logger.debug(f"File size exceeds limit for user {user.id}")
+                return Response({'message': 'File size exceeds the limit'}, status=status.HTTP_400_BAD_REQUEST)
 
-#     except Exception as e:
-#         users_logger.error(f"Error managing profile picture for {user_id}: {str(e)}")
-#         return Response({'message': 'An error occurred while managing the profile picture', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            user.profile_picture = file
+            user.save()
 
+            users_logger.debug(f"Profile picture saved for user {user.id}")
+            return Response({'message': 'Profile picture uploaded successfully!', 'profile_picture': user.profile_picture.url}, status=status.HTTP_200_OK)
+
+        elif request.method == 'DELETE':
+            if user.profile_picture:
+                user.profile_picture.delete()
+                user.save()
+
+                users_logger.debug(f"Profile picture deleted for user {user.id}")
+                return Response({'message': 'Profile picture deleted successfully!'}, status=status.HTTP_200_OK)
+            else:
+                users_logger.debug(f"No profile picture to delete for user {user.id}")
+                return Response({'message': 'No profile picture to delete'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        users_logger.error(f"Error managing profile picture for user {user.id}: {str(e)}")
+        return Response({'message': 'An error occurred while managing the profile picture', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
