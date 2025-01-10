@@ -27,8 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'unsafe-default-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
-# DEBUG=True
+# DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG=True
 
 ALLOWED_HOSTS = ['vibes-backend.up.railway.app', '127.0.0.1', 'localhost']
 

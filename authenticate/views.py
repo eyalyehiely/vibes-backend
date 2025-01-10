@@ -512,51 +512,6 @@ def manage_profile_pic(request):
         return Response({'message': 'An error occurred while managing the profile picture', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
-@api_view(['POST', 'DELETE'])
-@permission_classes([IsAuthenticated])
-def manage_profile_pic(request, user_id):
-    try:
-        # Fetch the CustomUser object
-        user = CustomUser.objects.filter(id=user_id).first()
-        if not user:
-            users_logger.debug(f"Profile not found for {user_id}")
-            return Response({'message': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Handle POST request for uploading profile picture
-        if request.method == 'POST':
-            if 'profile_picture' not in request.FILES:
-                users_logger.debug(f"No profile picture file provided for {user_id}")
-                return Response({'message': 'No profile picture file provided'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Upload the new profile picture
-            user.profile_picture = request.FILES['profile_picture']
-            user.save()
-
-            users_logger.debug(f"Profile picture saved for {user_id}")
-            return Response({
-                'message': 'Profile picture uploaded successfully!',
-                'profile_picture_url': user.profile_picture.url  # Return the S3 URL
-            }, status=status.HTTP_200_OK)
-
-        # Handle DELETE request for deleting profile picture
-        elif request.method == 'DELETE':
-            if user.profile_picture:
-                # Delete the profile picture file from S3
-                user.profile_picture.delete()
-                user.save()
-
-                users_logger.debug(f"Profile picture deleted for {user_id}")
-                return Response({'message': 'Profile picture deleted successfully!'}, status=status.HTTP_200_OK)
-            else:
-                users_logger.debug(f"No profile picture to delete for {user_id}")
-                return Response({'message': 'No profile picture to delete'}, status=status.HTTP_404_NOT_FOUND)
-
-    except Exception as e:
-        users_logger.error(f"Error managing profile picture for {user_id}: {str(e)}")
-        return Response({
-            'message': 'An error occurred while managing the profile picture',
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 # @permission_classes([IsAuthenticated])
