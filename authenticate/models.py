@@ -21,7 +21,7 @@ class CustomUser(AbstractUser):
     accept_terms = models.BooleanField(default=True)
     gender = models.CharField(max_length=4, choices=GENDER_CHOICES, blank=True, null=True)
     birth_date = models.DateField(default=datetime.date.today, blank=True, null=True)
-    profile_picture = models.ImageField(upload_to=profile_picture_upload_path, blank=True, null=True)
+    profile_picture = models.ImageField(upload_to=profile_picture_upload_path, blank=True, null=True, default='assets/default_profile_picture.jpg')
     favorite_places = models.JSONField(default=list, blank=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)

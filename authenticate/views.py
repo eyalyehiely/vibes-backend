@@ -463,14 +463,13 @@ def contact_us_mail(request):
         # Handle unexpected errors
         users_logger.error(f"Error sending email: {str(e)}")
         return Response({"error": "Failed to send email"}, status=500)
-
-
+    
 
 @api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def manage_profile_pic(request):
     try:
-        user = request.user  # Directly use the authenticated user
+        user = request.user 
 
         if request.method == 'POST':
             if 'profile_picture' not in request.FILES:
@@ -511,6 +510,7 @@ def manage_profile_pic(request):
     except Exception as e:
         users_logger.error(f"Error managing profile picture for user {user.id}: {str(e)}")
         return Response({'message': 'An error occurred while managing the profile picture', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 
 @api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
